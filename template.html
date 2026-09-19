@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Soppkart Årvoll</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/*__LEAFLET_CSS__*/
+:root{
+  --bg:#ECEFE8; --surface:#FAFBF7; --ink:#16221B; --muted:#5A695E; --line:#C9D2C6;
+  --spruce:#1F5A3A; --chanterelle:#E9A512; --poison:#6B2C91; --sel:#DDE7DC;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Instrument Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#111813; --surface:#19231C; --ink:#E6ECE4; --muted:#9AA99D; --line:#2B392F; --spruce:#7CC49A; --sel:#223229; --poison:#C39BE6; }}
+:root[data-theme="dark"]{ --bg:#111813; --surface:#19231C; --ink:#E6ECE4; --muted:#9AA99D; --line:#2B392F; --spruce:#7CC49A; --sel:#223229; --poison:#C39BE6; }
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--body)}
+header{padding:28px clamp(16px,4vw,40px) 18px;max-width:1500px;margin:0 auto}
+h1{font:700 clamp(2.1rem,5vw,3.4rem)/1 var(--display);letter-spacing:-0.02em;margin:0 0 10px}
+header p{margin:0;max-width:70ch;color:var(--muted)}
+header p strong{color:var(--ink);font-weight:600}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;max-width:1500px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 28px;align-items:start}
+.mapcol{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+#map{height:min(78vh,900px);min-height:420px;border:1px solid var(--line);border-radius:6px;background:#dfe3dc;z-index:0}
+.heat{image-rendering:auto}
+.controls{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;padding:10px 2px 0;font-size:.9rem;color:var(--muted)}
+.controls label{display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.controls input[type=range]{width:110px;accent-color:var(--spruce)}
+.controls input[type=checkbox],.controls input[type=radio]{accent-color:var(--spruce)}
+.legend{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:.82rem}
+.legend .bar{width:150px;height:10px;border-radius:5px;border:1px solid var(--line)}
+aside{display:flex;flex-direction:column;gap:18px;min-width:0}
+.list{display:flex;flex-direction:column;max-height:372px;overflow-y:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface);overflow:hidden}
+.sp{all:unset;box-sizing:border-box;display:grid;grid-template-columns:1fr 78px;gap:2px 10px;padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line);width:100%}
+.sp:last-child{border-bottom:0}
+.sp:hover{background:var(--sel)} .sp:focus-visible{outline:2px solid var(--spruce);outline-offset:-2px}
+.sp[aria-pressed=true]{background:var(--sel);box-shadow:inset 4px 0 0 var(--spruce)}
+.sp.poison[aria-pressed=true]{box-shadow:inset 4px 0 0 var(--poison)}
+.sp .nm{font-weight:600;line-height:1.25} .sp .nm small{font-weight:400;color:var(--poison);margin-left:6px}
+.sp .lt{grid-column:1;font-size:.8rem;font-style:italic;color:var(--muted);line-height:1.2}
+.sp .pm{grid-row:1/3;grid-column:2;align-self:center;text-align:right;font:500 .95rem var(--display);font-variant-numeric:tabular-nums}
+.sp .pm span{display:block;font:400 .72rem var(--body);color:var(--muted)}
+.listhead{position:sticky;top:0;background:var(--surface);z-index:1;padding:10px 14px;font-size:.82rem;color:var(--muted);border-bottom:1px solid var(--line)}
+.card{border:1px solid var(--line);border-radius:6px;background:var(--surface);padding:16px 18px}
+.card h2{font:700 1.45rem/1.1 var(--display);margin:0 0 2px;letter-spacing:-0.01em}
+.card .latin{font-style:italic;color:var(--muted);margin:0 0 10px}
+.card p{margin:0 0 10px;max-width:62ch}
+.warn{border-left:3px solid var(--poison);padding-left:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.stats div{border-top:1px solid var(--line);padding-top:6px;font-size:.8rem;color:var(--muted);line-height:1.3}
+.stats b{display:block;font:500 1.15rem var(--display);color:var(--ink);font-variant-numeric:tabular-nums}
+svg.spark{width:100%;height:84px;display:block;margin:4px 0 2px}
+.sparkcap{font-size:.78rem;color:var(--muted);margin:0 0 12px}
+h3{font:700 1rem var(--display);margin:14px 0 6px}
+ol.hot{list-style:none;margin:0;padding:0;counter-reset:h}
+ol.hot li{counter-increment:h;margin:0}
+ol.hot button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:26px 1fr;gap:8px;padding:7px 4px;width:100%;border-top:1px solid var(--line);font-size:.9rem;line-height:1.35}
+ol.hot button:hover{background:var(--sel)} ol.hot button:focus-visible{outline:2px solid var(--spruce)}
+ol.hot button::before{content:counter(h);width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--surface);font:700 .8rem/24px var(--display);text-align:center}
+ol.hot b{font-variant-numeric:tabular-nums}
+.pin{width:24px;height:24px;border-radius:50%;background:#16221B;color:#fff;font:700 12px/24px "Bricolage Grotesque",system-ui,sans-serif;text-align:center;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.isolabel{font:600 11px/1 "Instrument Sans",system-ui,sans-serif;color:#0E3B5C;background:rgba(255,255,255,.85);padding:2px 4px;border-radius:3px;white-space:nowrap}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--surface);color:var(--ink)}
+.leaflet-popup-content{margin:12px 14px;font:400 .85rem/1.4 var(--body)}
+.leaflet-popup-content table{border-collapse:collapse;width:100%} .leaflet-popup-content td{padding:1px 0} .leaflet-popup-content td:last-child{text-align:right;font-variant-numeric:tabular-nums;padding-left:14px}
+.leaflet-popup-content .g td{color:var(--poison)}
+section.more{max-width:1500px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 40px}
+details{border-top:1px solid var(--line);padding:12px 0} summary{cursor:pointer;font:700 1.05rem var(--display)}
+details p,details li{max-width:78ch} details code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.86em;background:var(--sel);padding:1px 4px;border-radius:3px}
+.formula{overflow-x:auto;white-space:nowrap;padding:6px 0}
+footer{font-size:.8rem;color:var(--muted);border-top:1px solid var(--line);padding-top:12px;max-width:90ch}
+@media (max-width:980px){ .layout{grid-template-columns:1fr} .mapcol{position:static} #map{height:62vh} .legend{margin-left:0} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Soppkart Årvoll</h1>
+  <p id="lead"></p>
+</header>
+<div class="layout">
+  <div class="mapcol">
+    <div id="map" role="application" aria-label="Kart over sannsynlighet for sopp ved Årvoll"></div>
+    <div class="controls">
+      <label><input type="radio" name="base" value="grey" checked> Kart</label>
+      <label><input type="radio" name="base" value="sat"> Satellitt 13. sept.</label>
+      <label>Styrke <input id="op" type="range" min="0" max="100" value="80" aria-label="Gjennomsiktighet for sannsynlighetslaget"></label>
+      <label><input id="cObs" type="checkbox" checked> Registrerte funn</label>
+      <label><input id="cIso" type="checkbox" checked> Gangtid</label>
+      <div class="legend"><span id="lg0">0</span><div class="bar" id="lgbar"></div><span id="lg1">70 %</span></div>
+    </div>
+  </div>
+  <aside>
+    <div class="list" id="list"><div class="listhead">Velg art. Tallet er høyeste sannsynlighet i området i dag.</div></div>
+    <div class="card" id="card" aria-live="polite"></div>
+  </aside>
+</div>
+<section class="more">
+  <details>
+    <summary>Slik er tallene regnet ut</summary>
+    <p>Sannsynligheten gjelder det å finne minst én fruktkropp av arten når du leter rundt punktet i dag. Den er et modellanslag, ikke kalibrert mot feltforsøk, og egner seg best til å sammenligne steder og arter.</p>
+    <div class="formula"><code>P = 1 − exp(−λ · H · M · Φ)</code></div>
+    <ul>
+      <li><strong>H, voksested.</strong> En ekspertmodell (treslag, trehøyde, bonitet og kronedekning fra NIBIO SR16; helning, terrengposisjon, avstand til sti og skogkant; plukkepress nær sti) blandes med en datamodell: logistisk regresjon av artens funn mot alle <span id="mTg"></span> ruter med soppfunn i området, slik at modellen korrigerer for hvor folk faktisk har lett. Datamodellen får vekt etter romlig kryssvalidert AUC (0,50–0,73 her). Nær tidligere funn legges det på inntil 50 %, fordi mycelet lever i tiår.</li>
+      <li><strong>M, fuktighet.</strong> <code>m = σ(våthet + 2,5·(θ − 0,55))</code>, der <code>våthet = 0,45·z(TWI) − 0,25·z(HLI) + 0,30·z(NDMI) − 0,20·z(TPI)</code>. TWI er topografisk fuktighetsindeks fra Kartverkets 5 m-terrengmodell, HLI er varmebelastning etter McCune og Keon, NDMI er fuktighetsindeks fra Sentinel-2. θ er vanninnholdet i skogbunnen fra en bøttemodell: <code>W<sub>t</sub> = min(50, max(0, W<sub>t−1</sub> + 0,8·regn − 0,9·ET₀))</code>. Hver art har sitt fuktoptimum.</li>
+      <li><strong>Φ, fruktindeks.</strong> Poisson-regresjon på ukentlige funn i Oslo-regionen 2008–2025 mot vær: <code>log μ = år + spline(dag i året) + β·[√regn 0–6, 7–13, 14–20, 21–27 og 28–41 døgn tilbake, θ, temperatur 14 d, temperatur², frostdøgn]</code>. Sesongkurven S og væravviket A (forholdet til normalen for datoen) gir <code>Φ = 1 − exp(−1,2·S·A)</code>. For artene samlet slår regn 3–6 uker tilbake og vannbalansen sterkest ut; regn siste uke slår negativt ut.</li>
+      <li><strong>λ, vanlighet.</strong> <code>λ = 0,7 + 1,5·√(n / n<sub>maks</sub>)</code> ut fra antall lokale funn.</li>
+      <li><strong>Gangtid.</strong> Korteste vei fra Årvollveien på stinettet i OpenStreetMap med Toblers gåfunksjon, <code>v = 6·exp(−3,5·|stigning + 0,05|)</code> km/t, og 0,55 × dette utenfor sti.</li>
+      <li><strong>Løv og bar.</strong> Forskjellen i NDVI mellom Sentinel-2-bildene fra 1. mai og 13. september 2026 skiller bjørk og annet løv fra bartrær.</li>
+    </ul>
+  </details>
+  <details>
+    <summary>Giftige forvekslingsarter i området</summary>
+    <p>Spiss giftslørsopp (38 funn) vokser i samme fuktige granskog som traktkantarell. Hvit fluesopp (32 funn) står i sur gran- og bjørkeskog. Flatklokkehatt (61 funn) vokser på stubber og ligner stubbeskjellsopp. Alle tre er dødelig giftige. Få kurven sjekket i soppkontrollen før du spiser noe du ikke er helt sikker på.</p>
+  </details>
+  <footer>
+    Kartgrunnlag: © Kartverket (CC BY 4.0). Skogdata: NIBIO SR16. Satellittdata: Copernicus Sentinel-2 2026. Funn: GBIF og Artsobservasjoner, <span id="fRec"></span> registreringer hentet 19. september 2026. Stier: © OpenStreetMap-bidragsytere. Vær: MET Norge via Open-Meteo, ERA5.
+  </footer>
+</section>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const D=/*__DATA__*/;
+const PNG=/*__PNG__*/;
+const GREY="data:image/jpeg;base64,/*__GREY__*/", SAT="data:image/jpeg;base64,/*__SAT__*/";
+const N=D.N, B=L.latLngBounds(D.bounds[0],D.bounds[1]);
+const fmt=(x,d=0)=>x.toLocaleString('nb-NO',{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct=p=>fmt(p*100)+' %';
+const edible=D.order.filter(s=>s!=='alle'&&!D.species[s].poison);
+// ---------- lead text
+(function(){
+  const w=D.weather, A=edible.map(s=>D.species[s].A), fc=w.fc, rain=fc.reduce((a,b)=>a+b[1],0), tmin=Math.min(...fc.map(b=>b[2]));
+  document.getElementById('lead').innerHTML=
+   `Sannsynlighet for sopp <strong>lørdag 19. september 2026</strong> i skogen innen gangavstand fra Årvollveien. `+
+   `Det har falt <strong>${fmt(w.r7)} mm</strong> regn siste uke og ${fmt(w.r30)} mm siste 30 døgn, snittet er ${fmt(w.t10,1)} °C og det har ikke vært frost. `+
+   `Skogbunnen er middels fuktig (${fmt(w.theta*100)} % av full vannlagring), og været gir <strong>${fmt(Math.min(...A),1)}–${fmt(Math.max(...A),1)} ganger normal soppmengde</strong> for datoen. `+
+   `Varselet de neste sju døgnene: ${fmt(rain)} mm regn, laveste nattetemperatur ${fmt(tmin,1)} °C.`;
+  document.getElementById('mTg').textContent=fmt(D.tg); document.getElementById('fRec').textContent=fmt(D.nrec);
+})();
+// ---------- map
+const map=L.map('map',{zoomSnap:.25,zoomDelta:.5,minZoom:12.5,maxZoom:17.5,maxBounds:B.pad(.08),maxBoundsViscosity:.9,attributionControl:false});
+map.createPane('base').style.zIndex=200; map.createPane('heat').style.zIndex=250;
+const base=L.imageOverlay(GREY,B,{pane:'base'}).addTo(map);
+const BLANK="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+const heat=L.imageOverlay(BLANK,B,{pane:'heat',opacity:.8,className:'heat'}).addTo(map);
+map.fitBounds([[59.9465,10.792],[59.9765,10.858]]);
+L.control.scale({imperial:false}).addTo(map);
+D.arv.forEach(l=>L.polyline(l,{color:'#16221B',weight:5,opacity:.9}).addTo(map).bindTooltip('Årvollveien',{sticky:true}));
+const isoLayer=L.layerGroup().addTo(map);
+Object.entries(D.iso).forEach(([lev,lines])=>{
+  let longest=null;
+  lines.forEach(l=>{L.polyline(l,{color:'#0E3B5C',weight:lev==30?2.2:1.4,dashArray:'6 5',opacity:.85,interactive:false}).addTo(isoLayer); if(!longest||l.length>longest.length)longest=l;});
+  if(longest){const p=longest.reduce((a,b)=>b[0]>a[0]?b:a); L.marker(p,{interactive:false,icon:L.divIcon({className:'',html:`<span class="isolabel">${lev} min</span>`,iconSize:[0,0]})}).addTo(isoLayer);}
+});
+const obsLayer=L.layerGroup().addTo(map), hotLayer=L.layerGroup().addTo(map);
+// ---------- rasters
+const cache={};
+function decode(s){ if(cache[s])return Promise.resolve(cache[s]);
+  return new Promise((res,rej)=>{const im=new Image(); im.onload=()=>{const c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(im,0,0);const d=x.getImageData(0,0,N,N).data,a=new Uint8Array(N*N);for(let i=0;i<N*N;i++)a[i]=d[i*4];cache[s]=a;res(a);}; im.onerror=rej; im.src='data:image/png;base64,'+PNG[s];});}
+const RAMP={ok:[[0,[255,236,150]],[.35,[242,159,5]],[.7,[214,40,40]],[1,[110,16,94]]], poison:[[0,[226,214,245]],[.35,[150,100,210]],[.7,[92,40,160]],[1,[40,12,80]]]};
+function colour(t,r){for(let k=1;k<r.length;k++){if(t<=r[k][0]){const a=r[k-1],b=r[k],u=(t-a[0])/(b[0]-a[0]);return [0,1,2].map(i=>a[1][i]+(b[1][i]-a[1][i])*u);}}return r[r.length-1][1];}
+const scaleMax=s=>s==='alle'?1:.7;
+function paint(s,arr){const c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d'),im=x.createImageData(N,N),r=D.species[s].poison?RAMP.poison:RAMP.ok,sm=scaleMax(s),lut=[];
+  for(let v=0;v<=100;v++){const t=Math.min(1,v/100/sm),col=colour(t,r);lut.push([col[0],col[1],col[2],Math.max(0,Math.min(225,255*(t-.14)*1.7))]);}
+  for(let i=0;i<N*N;i++){const q=lut[Math.min(100,arr[i])];im.data[i*4]=q[0];im.data[i*4+1]=q[1];im.data[i*4+2]=q[2];im.data[i*4+3]=q[3];}
+  x.putImageData(im,0,0);return c.toDataURL('image/png');}
+function gradientCss(r){return 'linear-gradient(90deg,'+r.map(([t,c])=>`rgb(${c.join(',')}) ${t*100}%`).join(',')+')';}
+// ---------- species list + card
+let current=null;
+const list=document.getElementById('list'), card=document.getElementById('card');
+D.order.forEach(s=>{const sp=D.species[s],b=document.createElement('button');b.className='sp'+(sp.poison?' poison':'');b.setAttribute('aria-pressed','false');b.dataset.s=s;
+  const top=s==='alle'?`${fmt(sp.pmax*sp.escale,1)}<span>arter</span>`:`${pct(sp.pmax)}<span>${sp.poison?'risiko':'beste sted'}</span>`;
+  b.innerHTML=`<span class="nm">${sp.no}${sp.poison?'<small>dødelig giftig</small>':''}</span><span class="pm">${top}</span><span class="lt">${sp.lat.join(', ')||'tolv arter'}</span>`;
+  b.addEventListener('click',()=>select(s));list.appendChild(b);});
+function spark(series){const W=360,H=84,pl=4,pb=16,n=series.length,ti=series.findIndex(d=>d[0]==='2026-09-19'),X=i=>pl+i*(W-2*pl)/(n-1),Y=v=>(H-pb)-(v)*(H-pb-6);
+  const path=(a,b)=>series.slice(a,b+1).map((d,i)=>(i?'L':'M')+X(a+i).toFixed(1)+' '+Y(d[1]).toFixed(1)).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" role="img" aria-label="Fruktindeks siste 30 døgn og neste 7 døgn"><line x1="${pl}" x2="${W-pl}" y1="${H-pb}" y2="${H-pb}" stroke="var(--line)"/>
+  <path d="${path(0,ti)} L${X(ti)} ${H-pb} L${X(0)} ${H-pb} Z" fill="var(--chanterelle)" opacity=".25"/><path d="${path(0,ti)}" fill="none" stroke="var(--chanterelle)" stroke-width="2.2"/>
+  <path d="${path(ti,n-1)}" fill="none" stroke="var(--chanterelle)" stroke-width="2.2" stroke-dasharray="4 4"/>
+  <line x1="${X(ti)}" x2="${X(ti)}" y1="4" y2="${H-pb}" stroke="var(--ink)" stroke-width="1"/><circle cx="${X(ti)}" cy="${Y(series[ti][1])}" r="3.5" fill="var(--ink)"/>
+  <text x="${pl}" y="${H-3}" font-size="10" fill="var(--muted)">20. aug.</text><text x="${X(ti)}" y="${H-3}" font-size="10" fill="var(--ink)" text-anchor="middle">i dag</text><text x="${W-pl}" y="${H-3}" font-size="10" fill="var(--muted)" text-anchor="end">26. sept.</text></svg>`;}
+function hotText(s,h){const sp=D.species[s],v=s==='alle'?`${fmt(h.p*sp.escale,1)} arter`:pct(h.p);
+  return `<span><b>${v}</b>, ${h.min} min å gå. ${fmt(h.d)} m ${h.b} for enden av Årvollveien${h.near?', ved '+h.near:''}, ${h.elev} moh.</span>`;}
+function select(s){current=s;const sp=D.species[s];
+  list.querySelectorAll('.sp').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s?'true':'false'));
+  decode(s).then(a=>{if(current===s)heat.setUrl(paint(s,a));});
+  document.getElementById('lgbar').style.background=gradientCss(sp.poison?RAMP.poison:RAMP.ok);
+  document.getElementById('lg1').textContent=s==='alle'?fmt(sp.escale)+' arter':'70 % eller mer';
+  obsLayer.clearLayers();
+  (s==='alle'?edible:[s]).forEach(k=>D.species[k].obs.forEach(o=>L.circleMarker([o[0],o[1]],{radius:3,weight:1,color:'#fff',fillColor:sp.poison?'#4B1D6B':'#16221B',fillOpacity:.9,pane:'markerPane'}).bindTooltip(`${D.species[k].no}${o[2]?', '+o[2]:''}`).addTo(obsLayer)));
+  hotLayer.clearLayers();
+  const pins=sp.hot.map((h,i)=>L.marker([h.lat,h.lon],{icon:L.divIcon({className:'',html:`<div class="pin">${i+1}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).bindPopup(hotText(s,h)).addTo(hotLayer));
+  let h=`<h2>${sp.no}</h2><p class="latin">${sp.lat.join(', ')||'Sum av sannsynlighetene for de tolv matsoppene'}</p><p>${sp.txt.h}</p>`;
+  if(sp.txt.f)h+=`<p class="${sp.txt.warn?'warn':''}">${sp.txt.f}</p>`;
+  if(s!=='alle'){h+=`<div class="stats"><div><b>${fmt(sp.A,1)}×</b>vær mot normalt for datoen</div><div><b>${pct(sp.S)}</b>av toppsesong</div><div><b>${fmt(sp.n)}</b>funn i området, AUC ${fmt(sp.auc,2)}</div></div>`+spark(sp.series)+`<p class="sparkcap">Fruktindeks Φ fra 20. august, stiplet for varselet til 26. september.</p>`;}
+  h+=`<h3>${sp.poison?'Der risikoen er størst innen 45 minutter':'Beste steder innen 45 minutter å gå'}</h3><ol class="hot">${sp.hot.map((x,i)=>`<li><button data-i="${i}">${hotText(s,x)}</button></li>`).join('')}</ol>`;
+  card.innerHTML=h;
+  card.querySelectorAll('ol.hot button').forEach(b=>b.addEventListener('click',()=>{const i=+b.dataset.i,x=sp.hot[i];map.flyTo([x.lat,x.lon],16.25,{duration:.6});pins[i].openPopup();if(window.matchMedia('(max-width:980px)').matches)document.getElementById('map').scrollIntoView({behavior:'smooth',block:'start'});}));}
+// ---------- controls
+document.querySelectorAll('input[name=base]').forEach(r=>r.addEventListener('change',()=>base.setUrl(r.value==='sat'&&r.checked?SAT:GREY)));
+document.getElementById('op').addEventListener('input',e=>heat.setOpacity(e.target.value/100));
+document.getElementById('cObs').addEventListener('change',e=>e.target.checked?obsLayer.addTo(map):map.removeLayer(obsLayer));
+document.getElementById('cIso').addEventListener('change',e=>e.target.checked?isoLayer.addTo(map):map.removeLayer(isoLayer));
+// ---------- click readout
+const P3857=L.CRS.EPSG3857, sw=P3857.project(B.getSouthWest()), ne=P3857.project(B.getNorthEast());
+map.on('click',ev=>{const p=P3857.project(ev.latlng),j=Math.floor((p.x-sw.x)/(ne.x-sw.x)*N),i=Math.floor((ne.y-p.y)/(ne.y-sw.y)*N);if(i<0||j<0||i>=N||j>=N)return;
+  Promise.all(D.order.filter(s=>s!=='alle').concat(['_walk']).map(decode)).then(()=>{const k=i*N+j,rows=D.order.filter(s=>s!=='alle').map(s=>[s,cache[s][k]]).sort((a,b)=>b[1]-a[1]);
+    const wt=cache['_walk'][k], any=rows[0][1]>=3;
+    const body=any?'<table>'+rows.filter(r=>r[1]>=3).slice(0,8).map(r=>`<tr class="${D.species[r[0]].poison?'g':''}"><td>${D.species[r[0]].no}</td><td>${r[1]} %</td></tr>`).join('')+'</table>':'Ikke skog her, eller under 3 % for alle arter.';
+    L.popup({maxWidth:260}).setLatLng(ev.latlng).setContent(`<strong>${wt>=120?'Over 2 timer':wt+' min'} fra Årvollveien</strong><br>${body}`).openOn(map);});});
+select('alle');
+</script>
+</body>
+</html>

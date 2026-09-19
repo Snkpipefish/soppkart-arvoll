@@ -1,0 +1,8 @@
+.venv/
+venv/
+__pycache__/
+site/
+data/model_out.json
+data/model_png.json
+data/grids.npz
+.claude/
