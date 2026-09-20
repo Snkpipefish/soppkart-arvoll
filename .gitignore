@@ -2,7 +2,15 @@
 venv/
 __pycache__/
 site/
-data/model_out.json
-data/model_png.json
-data/grids.npz
-.claude/
+areas/*/data/model_out.json
+areas/*/data/model_png.json
+areas/*/data/grids.npz
+# mellomprodukter fra prep/ som ikke trengs for å kjøre modellen
+areas/*/data/tiles/
+areas/*/data/gbif_pages/
+areas/*/data/dtm_utm33_5m.tif
+areas/*/data/sr16_*.png
+areas/*/data/s2_*.npz
+areas/*/data/s2_truecolor.png
+areas/*/data/stac_*.json
+areas/*/data/osm_highways.json

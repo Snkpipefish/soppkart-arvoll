@@ -1,4 +1,4 @@
-import json, math, glob, datetime as dt, numpy as np
+import json, math, glob, sys, datetime as dt, numpy as np
 from scipy import ndimage as ndi
 from sklearn.linear_model import LogisticRegression, PoissonRegressor
 from sklearn.preprocessing import StandardScaler, SplineTransformer
@@ -7,12 +7,13 @@ from skimage.measure import find_contours
 from skimage.feature import peak_local_max
 from species_def import SPECIES
 np.random.seed(1)
+AREA_DIR=sys.argv[1] if len(sys.argv)>1 else 'areas/arvoll'; D=f'{AREA_DIR}/data'; AREA=json.load(open(f'{AREA_DIR}/area.json'))
 SPECIES=[s for s in SPECIES if s[0]!="flatklokke"]
 POISON={"giftslor","hvitflue"}
-g=json.load(open('data/grid.json')); N=576; R=6378137.0
+g=json.load(open(f'{D}/grid.json')); N=576; R=6378137.0; LATC=(g['SW'][0]+g['NE'][0])/2
 MX0,MY0,MX1,MY1=g['MX0'],g['MY0'],g['MX1'],g['MY1']
-C=dict(np.load('data/covars.npz')); T=dict(np.load('data/terrain.npz'))
-forest=C['forest'].astype(bool); cell=(MX1-MX0)/N*math.cos(math.radians(59.963))
+C=dict(np.load(f'{D}/covars.npz')); T=dict(np.load(f'{D}/terrain.npz'))
+forest=C['forest'].astype(bool); cell=(MX1-MX0)/N*math.cos(math.radians(LATC))
 def ll2ij(lat,lon):
     mx=math.radians(lon)*R; my=R*math.log(math.tan(math.pi/4+math.radians(lat)/2))
     return int((MY1-my)/(MY1-MY0)*N), int((mx-MX0)/(MX1-MX0)*N)
@@ -27,14 +28,16 @@ slope_deg=np.degrees(T['slope'])
 def z(a):
     v=a[forest]; return np.clip((a-np.mean(v))/np.std(v),-2.5,2.5)
 # ================= 1. SDM: presence vs target-group background =================
-recs=json.load(open('data/gbif_all.json'))
+recs=json.load(open(f'{D}/gbif_all.json'))
 def good(r): 
     u=r.get('coordinateUncertaintyInMeters'); return u is not None and u<=100 and r.get('decimalLatitude')
 tg=set(); pres={s[0]:[] for s in SPECIES}; obs_pts={s[0]:[] for s in SPECIES}; ncount={}
 lat2sid={l:s[0] for s in SPECIES for l in s[2]}
+flat_lat={l for sid_,_,lat_ in __import__('species_def').SPECIES if sid_=='flatklokke' for l in lat_}; n_flat=0
 for r in recs:
     sid=lat2sid.get(r.get('species'))
     if sid: ncount[sid]=ncount.get(sid,0)+1
+    if r.get('species') in flat_lat: n_flat+=1
     if not good(r): continue
     i,j=ll2ij(r['decimalLatitude'],r['decimalLongitude'])
     if not(0<=i<N and 0<=j<N): continue
@@ -51,6 +54,11 @@ blk=lambda i,j:((i//105)+2*(j//105))%4
 sdm={}
 for sid,no,lat in SPECIES:
     pc=sorted(set(pres[sid])); 
+    if len(pc)<15 or len(tg)<50:   # for få funn til en datamodell: bare ekspertmodell + eventuell funntetthet
+        kd=np.zeros((N,N))
+        for i,j in pres[sid]: kd[i,j]+=1
+        kd=ndi.gaussian_filter(kd,6); kd=np.clip(kd/max(kd.max()*0.6,1e-9),0,1) if kd.max()>0 else kd
+        sdm[sid]=dict(S=np.zeros((N,N)),auc=0.5,w=0.0,n_cells=len(pc),kde=kd); continue
     rows=[idx[i,j] for i,j in pc]+[idx[i,j] for i,j in tg]; y=np.r_[np.ones(len(pc)),np.zeros(len(tg))]
     fold=np.array([blk(i,j) for i,j in pc]+[blk(i,j) for i,j in tg]); Xa=Xall[rows]
     aucs=[]
@@ -98,14 +106,15 @@ def expert(sid):
     fp=1-ap*np.exp(-C['d_path']/15)*np.exp(-np.nan_to_num(C['wtime'],nan=90)/60)
     H=tree*mat*fb*fc*fs*ft*fe*fp; H=np.where(forest,H,0); return np.clip(H/np.percentile(H[forest],99),0,1)
 # ================= 3. Weather: bucket model + distributed-lag Poisson =================
-arch=json.load(open('data/weather_archive.json'))['daily']; fc=json.load(open('data/weather.json'))['daily']
+wj=json.load(open(f'{D}/weather.json')); arch=json.load(open(f'{D}/weather_archive.json'))['daily']; fc=wj['daily']
+TODAY=dt.date.fromisoformat(wj['fetched'])
 A={d:(p,t,tn,e) for d,p,t,tn,e in zip(arch['time'],arch['precipitation_sum'],arch['temperature_2m_mean'],arch['temperature_2m_min'],arch['et0_fao_evapotranspiration']) if None not in (p,t,tn,e)}
 Fc={d:(p,t,tn,e) for d,p,t,tn,e in zip(fc['time'],fc['precipitation_sum'],fc['temperature_2m_mean'],fc['temperature_2m_min'],fc['et0_fao_evapotranspiration']) if None not in (p,t,tn,e)}
 print('forecast-API days:',min(Fc),max(Fc),len(Fc))
-ov=[d for d in Fc if d in A and d<='2026-09-12']
+ov=[d for d in Fc if d in A and d<=(TODAY-dt.timedelta(7)).isoformat()]
 pr=sum(A[d][0] for d in ov)/max(sum(Fc[d][0] for d in ov),1); toff=np.mean([A[d][1]-Fc[d][1] for d in ov]); pr_c=float(np.clip(pr,0.7,1.4))
 print(f"overlap {len(ov)} d: ERA5/MET precip ratio {pr:.2f} (used {pr_c:.2f}), temp offset {toff:+.2f}")
-d0=dt.date(2007,10,1); TODAY=dt.date(2026,9,19); d1=dt.date(2026,9,26); days=[d0+dt.timedelta(n) for n in range((d1-d0).days+1)]
+d0=dt.date(2007,10,1); d1=dt.date.fromisoformat(max(Fc)); days=[d0+dt.timedelta(n) for n in range((d1-d0).days+1)]
 P=np.zeros(len(days)); Tm=np.zeros(len(days)); Tn=np.zeros(len(days)); E=np.zeros(len(days))
 for n,d in enumerate(days):
     s=d.isoformat()
@@ -140,7 +149,7 @@ for y in years:
 wk_t=np.array(wk_t)
 def weekly_counts(sid):
     cnt={k:0 for k in wk_key}; n=0
-    for fn in glob.glob(f'data/reg/{sid}_*.json'):
+    for fn in glob.glob(f'{D}/reg/{sid}_*.json'):
         for y,mo,da in json.load(open(fn)):
             if not(y and mo and da): continue
             try: d=dt.date(y,mo,da)
@@ -173,7 +182,7 @@ for sid,no,lat in SPECIES:
     seas=np.exp(spl.transform(np.arange(152,335)[:,None])@sc_); seas/=seas.max()
     ew=np.exp(Wz@beta); clim=np.array([ew[(doy==dd)&(yr>=2008)&(yr<=2025)].mean() for dd in range(152,335)])
     clim=ndi.uniform_filter1d(clim,15,mode='nearest')
-    fits[sid]=dict(n=int(n),beta=beta,seas=seas,clim=clim,ew=ew,d2w=float(d2(y,m1.predict(Xw))),d2s=float(d2(y,m0.predict(X0))),cvgain=float(np.mean(gain)))
+    fits[sid]=dict(n=int(n),beta=beta,seas=seas,clim=clim,ew=ew,d2w=float(d2(y,m1.predict(Xw))),d2s=float(d2(y,m0.predict(X0))),cvgain=float(np.nan_to_num(np.mean(gain))))
 def phi_series(sid,d_from,d_to):
     f=fits[sid]; out=[]
     for n in range(di[d_from],di[d_to]+1):
@@ -182,7 +191,8 @@ def phi_series(sid,d_from,d_to):
     return out
 # ================= 4. Probability today =================
 tn=di[TODAY]; th=float(theta[tn]); m_eff=sig(wet+2.5*(th-0.55))
-nmax=max(ncount.values()); OUT={}; grids={}
+nloc=sum(ncount.values()); lamn={s[0]:(ncount.get(s[0],0) if nloc>=500 else fits[s[0]]['n']) for s in SPECIES}; nmax=max(max(lamn.values()),1); OUT={}; grids={}
+print('local records',nloc,'| lambda from',('local' if nloc>=500 else 'regional'),'counts')
 print(f"\ntheta today {th:.2f}  | R7={R1[tn]**2:.0f} R8-14={R2[tn]**2:.0f} R15-21={R3[tn]**2:.0f} R22-28={R4[tn]**2:.0f} mm, T14={T14[tn]+12:.1f}")
 print(f"{'art':15s} {'n':>4s} {'celler':>6s} {'AUC':>5s} {'w':>4s} {'nReg':>5s} {'D2s':>5s} {'D2w':>5s} {'cvΔ':>6s} {'S':>5s} {'A':>5s} {'Phi':>5s} {'Pmean':>6s} {'Pmax':>5s} {'ha>0.3':>7s}")
 for sid,no,lat in SPECIES:
@@ -190,23 +200,23 @@ for sid,no,lat in SPECIES:
     H=np.where(forest,(np.maximum(He,1e-3)**(1-w_))*(np.maximum(s['S'],1e-3)**w_),0); H=1-(1-H)*(1-0.5*s['kde']); H=np.where(forest,H,0)
     mu,sd=PAR[sid][3]; M=np.exp(-0.5*((m_eff-mu)/sd)**2)
     ser=phi_series(sid,TODAY-dt.timedelta(30),d1); today=[x for x in ser if x[0]==TODAY.isoformat()][0]
-    lam=0.7+1.5*math.sqrt(ncount[sid]/nmax)
+    lam=0.7+1.5*math.sqrt(lamn[sid]/nmax)
     Pm=np.where(forest,1-np.exp(-lam*H*M*today[3]),0); Pm=ndi.gaussian_filter(Pm,0.8)*forest
     grids[sid]=Pm
-    print(f"{sid:15s} {ncount[sid]:4d} {s['n_cells']:6d} {s['auc']:5.2f} {w_:4.2f} {fits[sid]['n']:5d} {fits[sid]['d2s']:5.2f} {fits[sid]['d2w']:5.2f} {fits[sid]['cvgain']:+6.3f} {today[1]:5.2f} {today[2]:5.2f} {today[3]:5.2f} {Pm[forest].mean():6.3f} {Pm.max():5.2f} {(Pm>0.3).sum()*cell*cell/1e4:7.1f}")
-    OUT[sid]=dict(no=no,lat=lat,poison=sid in POISON,n=ncount[sid],auc=round(s['auc'],2),w=round(w_,2),nreg=fits[sid]['n'],cvgain=round(fits[sid]['cvgain'],3),
+    print(f"{sid:15s} {ncount.get(sid,0):4d} {s['n_cells']:6d} {s['auc']:5.2f} {w_:4.2f} {fits[sid]['n']:5d} {fits[sid]['d2s']:5.2f} {fits[sid]['d2w']:5.2f} {fits[sid]['cvgain']:+6.3f} {today[1]:5.2f} {today[2]:5.2f} {today[3]:5.2f} {Pm[forest].mean():6.3f} {Pm.max():5.2f} {(Pm>0.3).sum()*cell*cell/1e4:7.1f}")
+    OUT[sid]=dict(no=no,lat=lat,poison=sid in POISON,n=ncount.get(sid,0),auc=round(s['auc'],2),w=round(w_,2),nreg=fits[sid]['n'],cvgain=round(fits[sid]['cvgain'],3),
                   S=round(today[1],2),A=round(today[2],2),phi=round(today[3],2),series=[[d_,round(p_,3)] for d_,_,_,p_ in ser],lam=round(lam,2),
                   beta=dict(zip(wnames,[round(float(b),3) for b in fits[sid]['beta']])),obs=obs_pts[sid],pmax=round(float(Pm.max()),2))
 edible=[s[0] for s in SPECIES if s[0] not in POISON]
 Esum=np.sum([grids[s] for s in edible],axis=0); ESCALE=float(math.ceil(Esum.max())); grids['alle']=Esum/ESCALE; print('expected edible species: max',Esum.max(),'mean forest',Esum[forest].mean(),'scale',ESCALE)
 # ================= 5. Hotspots, isochrones, export =================
 waters=[]
-for e in json.load(open('data/osm_landuse.json'))['elements']:
+for e in json.load(open(f'{D}/osm_landuse.json'))['elements']:
     t=e.get('tags',{})
     if t.get('natural')=='water' and t.get('name'):
         ge=e.get('geometry') or [p for m in e.get('members',[]) if 'geometry' in m for p in m['geometry']]
         if ge: waters.append((t['name'],np.mean([p['lat'] for p in ge]),np.mean([p['lon'] for p in ge])))
-END=(59.9555,10.8212)
+END=tuple(AREA['end'])
 def dist_bear(lat,lon):
     dy=(lat-END[0])*110950; dx=(lon-END[1])*111320*math.cos(math.radians(lat)); d=math.hypot(dx,dy)
     b=(math.degrees(math.atan2(dx,dy))+360)%360; return d,["N","NØ","Ø","SØ","S","SV","V","NV"][int((b+22.5)//45)%8]
@@ -229,7 +239,7 @@ for lev in (15,30,45,60):
         if len(c)<40: continue
         ls.append([[round(v,5) for v in ij2ll(p[0]-0.5,p[1]-0.5)] for p in c[::4]])
     iso[lev]=ls
-arv=[[[round(p['lat'],5),round(p['lon'],5)] for p in e['geometry']] for e in json.load(open('arvollveien.json'))['elements']]
+arv=[[[round(p['lat'],5),round(p['lon'],5)] for p in e['geometry']] for e in json.load(open(f"{AREA_DIR}/{AREA['road_file']}"))['elements']]
 wsum=dict(r7=round(float(R1[tn]**2/pr_c)),r14=round(float((R1[tn]**2+R2[tn]**2)/pr_c)),r30=round(float(sum(Fc[(TODAY-dt.timedelta(k)).isoformat()][0] for k in range(30)))),
           t10=round(float(np.mean([Fc[(TODAY-dt.timedelta(k)).isoformat()][1] for k in range(10)])),1),tmin10=round(float(min(Fc[(TODAY-dt.timedelta(k)).isoformat()][2] for k in range(10))),1),
           theta=round(th,2),fc=[[d,Fc[d][0],Fc[d][2]] for d in sorted(Fc) if d>TODAY.isoformat()])
@@ -239,7 +249,8 @@ def png8(a,k=100):
     b=io.BytesIO(); Image.fromarray(np.clip(np.round(a*k),0,255).astype(np.uint8),'L').save(b,'PNG',optimize=True); return base64.b64encode(b.getvalue()).decode()
 pngs={k:png8(v) for k,v in grids.items()}; pngs['_walk']=png8(np.clip(np.nan_to_num(C['wtime'],nan=127),0,127),1); print("overlay png kB:",{k:len(v)//1024 for k,v in pngs.items()})
 json.dump(dict(species=OUT,order=['alle']+[s[0] for s in SPECIES],iso=iso,arv=arv,weather=wsum,bounds=[list(g['SW']),list(g['NE'])],N=N,
-               forest_share=float(forest.mean()),tg=len(tg),nrec=len(recs),pooled=dict(zip(wnames,[round(float(b),3) for b in beta_pool]))),open('data/model_out.json','w'))
-json.dump(pngs,open('data/model_png.json','w')); np.savez_compressed('data/grids.npz',**grids)
+               forest_share=float(forest.mean()),tg=len(tg),nrec=len(recs),n_flat=n_flat,pooled=dict(zip(wnames,[round(float(b),3) for b in beta_pool])),
+               today=TODAY.isoformat(),d1=d1.isoformat(),area=AREA),open(f'{D}/model_out.json','w'))
+json.dump(pngs,open(f'{D}/model_png.json','w')); np.savez_compressed(f'{D}/grids.npz',**grids)
 for sid in ('alle','traktkantarell','kantarell','steinsopp'):
     print(sid,[(h['p'],h['min'],h['d'],h['b'],h['near']) for h in OUT[sid]['hot']])

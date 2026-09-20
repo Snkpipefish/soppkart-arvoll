@@ -1,0 +1,34 @@
+{
+  "id": "skarnes",
+  "name": "Skarnes",
+  "title": "Soppkart Skarnes",
+  "path": "skarnes",
+  "road": "Spiksetsvingen",
+  "road_file": "spiksetsvingen.json",
+  "end": [
+    60.2432,
+    11.6386
+  ],
+  "weather_point": [
+    60.235,
+    11.64
+  ],
+  "region": "det sentrale Østlandet",
+  "region_poly": "POLYGON((10.35 59.75,12.3 59.75,12.3 60.6,10.35 60.6,10.35 59.75))",
+  "view": [
+    [
+      60.237,
+      11.583
+    ],
+    [
+      60.27,
+      11.653
+    ]
+  ],
+  "sat_label": "Satellitt 10. sept.",
+  "s2_spring": "1. mai",
+  "s2_late": "10. september 2026",
+  "gbif_date": "20. september 2026",
+  "lead": "i skogen innen gangavstand fra Spiksetsvingen ved Skarnes",
+  "notes": {}
+}

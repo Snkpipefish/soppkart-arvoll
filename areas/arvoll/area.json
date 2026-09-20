@@ -1,0 +1,19 @@
+{
+  "id": "arvoll",
+  "name": "Årvoll",
+  "title": "Soppkart Årvoll",
+  "path": "",
+  "road": "Årvollveien",
+  "road_file": "arvollveien.json",
+  "end": [59.9555, 10.8212],
+  "weather_point": [59.962, 10.825],
+  "region": "Oslo-regionen",
+  "region_poly": "POLYGON((10.35 59.75,11.25 59.75,11.25 60.20,10.35 60.20,10.35 59.75))",
+  "view": [[59.9465, 10.792], [59.9765, 10.858]],
+  "sat_label": "Satellitt 13. sept.",
+  "s2_spring": "1. mai",
+  "s2_late": "13. september 2026",
+  "gbif_date": "19. september 2026",
+  "lead": "i skogen innen gangavstand fra Årvollveien",
+  "notes": {"trompet": "Sjelden her, fordi berggrunnen i åsene er sur."}
+}
